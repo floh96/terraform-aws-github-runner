@@ -208,7 +208,7 @@ describe("delete AMI's", () => {
         {
           ImageId: 'ami-old0001',
           CreationDate: date31DaysAgo.toISOString(),
-        }
+        },
       ],
     });
 

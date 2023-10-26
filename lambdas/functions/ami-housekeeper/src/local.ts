@@ -18,7 +18,7 @@ export function run(): void {
       {
         Name: 'tag:Packer',
         Values: ['true'],
-      }
+      },
     ],
   })
     .then()

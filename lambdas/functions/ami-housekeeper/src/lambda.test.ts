@@ -9,8 +9,8 @@ jest.mock('./ami');
 jest.mock('@terraform-aws-github-runner/aws-powertools-util');
 
 const amiCleanupOptions: AmiCleanupOptions = {
-  minimumDaysOld: 7
-}
+  minimumDaysOld: 7,
+};
 
 process.env.AMI_CLEANUP_OPTIONS = JSON.stringify(amiCleanupOptions);
 

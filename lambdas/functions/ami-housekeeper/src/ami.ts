@@ -70,7 +70,7 @@ async function getAmisNotInUse(options: AmiCleanupOptions) {
     new DescribeImagesCommand({
       Owners: ['self'],
       MaxResults: options.maxItems ? options.maxItems : undefined,
-      Filters: options.filters
+      Filters: options.filters,
     }),
   );
 
@@ -139,9 +139,11 @@ async function deleteSnapshot(amiDetails: Image, ec2Client: EC2Client) {
 
 async function getAmiInLatestTemplates(options: AmiCleanupOptions): Promise<(string | undefined)[]> {
   const ec2Client = new EC2Client({});
-  const launnchTemplates = await ec2Client.send(new DescribeLaunchTemplatesCommand({
-    LaunchTemplateNames: options.launchTemplateNames,
-  }));
+  const launnchTemplates = await ec2Client.send(
+    new DescribeLaunchTemplatesCommand({
+      LaunchTemplateNames: options.launchTemplateNames,
+    }),
+  );
 
   // lookup details of latest version of each launch template
   const amiIdsInTemplates = await Promise.all(
@@ -149,7 +151,7 @@ async function getAmiInLatestTemplates(options: AmiCleanupOptions): Promise<(str
       const launchTemplateVersion = await ec2Client.send(
         new DescribeLaunchTemplateVersionsCommand({
           LaunchTemplateId: launchTemplate.LaunchTemplateId,
-          Versions: ["$Default"]
+          Versions: ['$Default'],
         }),
       );
       return launchTemplateVersion.LaunchTemplateVersions?.map(
