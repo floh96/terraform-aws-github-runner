@@ -18,6 +18,7 @@ export interface AmiCleanupOptions {
   maxItems?: number;
   filters?: Filter[];
   launchTemplateNames?: string[];
+  ssmParameterNames?: string[];
 }
 
 interface AmiCleanupOptionsInternal extends AmiCleanupOptions {
@@ -25,6 +26,7 @@ interface AmiCleanupOptionsInternal extends AmiCleanupOptions {
   maxItems: number;
   filters: Filter[];
   launchTemplateNames: string[];
+  ssmParameterNames: string[];
 }
 
 const defaultAmiCleanupOptions: AmiCleanupOptions = {
@@ -41,6 +43,7 @@ const defaultAmiCleanupOptions: AmiCleanupOptions = {
     },
   ],
   launchTemplateNames: undefined,
+  ssmParameterNames: undefined,
 };
 
 /**
@@ -62,7 +65,7 @@ async function amiCleanup(options?: AmiCleanupOptions): Promise<void> {
 }
 
 async function getAmisNotInUse(options: AmiCleanupOptions) {
-  const amiIdsInSSM = await getAmisReferedInSSM();
+  const amiIdsInSSM = await getAmisReferedInSSM(options);
   const amiIdsInTemplates = await getAmiInLatestTemplates(options);
 
   const ec2Client = new EC2Client({});
@@ -163,7 +166,11 @@ async function getAmiInLatestTemplates(options: AmiCleanupOptions): Promise<(str
   return amiIdsInTemplates.flat();
 }
 
-async function getAmisReferedInSSM(): Promise<(string | undefined)[]> {
+async function getAmisReferedInSSM(options: AmiCleanupOptions): Promise<(string | undefined)[]> {
+  if (options.ssmParameterNames === undefined || options.ssmParameterNames.length === 0) {
+    return [];
+  }
+
   const ssmClient = new SSMClient({});
   const ssmParams = await ssmClient.send(
     new DescribeParametersCommand({
