@@ -16,7 +16,7 @@ const logger = createChildLogger('ami');
 export interface AmiCleanupOptions {
   minimumDaysOld?: number;
   maxItems?: number;
-  filters?: Filter[];
+  amiFilters?: Filter[];
   launchTemplateNames?: string[];
   ssmParameterNames?: string[];
   dryRun?: boolean;
@@ -25,15 +25,16 @@ export interface AmiCleanupOptions {
 interface AmiCleanupOptionsInternal extends AmiCleanupOptions {
   minimumDaysOld: number;
   maxItems: number;
-  filters: Filter[];
+  amiFilters: Filter[];
   launchTemplateNames: string[];
   ssmParameterNames: string[];
+  dryRun: boolean;
 }
 
 export const defaultAmiCleanupOptions: AmiCleanupOptions = {
   minimumDaysOld: 30,
   maxItems: undefined,
-  filters: [
+  amiFilters: [
     {
       Name: 'state',
       Values: ['available'],
@@ -45,15 +46,17 @@ export const defaultAmiCleanupOptions: AmiCleanupOptions = {
   ],
   launchTemplateNames: undefined,
   ssmParameterNames: undefined,
+  dryRun: false,
 };
 
 function applyDefaults(options: AmiCleanupOptions): AmiCleanupOptions {
   return {
     minimumDaysOld: options.minimumDaysOld ?? defaultAmiCleanupOptions.minimumDaysOld,
     maxItems: options.maxItems ?? defaultAmiCleanupOptions.maxItems,
-    filters: options.filters ?? defaultAmiCleanupOptions.filters,
+    amiFilters: options.amiFilters ?? defaultAmiCleanupOptions.amiFilters,
     launchTemplateNames: options.launchTemplateNames ?? defaultAmiCleanupOptions.launchTemplateNames,
     ssmParameterNames: options.ssmParameterNames ?? defaultAmiCleanupOptions.ssmParameterNames,
+    dryRun: options.dryRun ?? defaultAmiCleanupOptions.dryRun,
   };
 }
 
@@ -80,12 +83,12 @@ async function getAmisNotInUse(options: AmiCleanupOptions) {
   const amiIdsInTemplates = await getAmiInLatestTemplates(options);
 
   const ec2Client = new EC2Client({});
-  logger.debug('Getting all AMIs from ec2 with filters', { filters: options.filters });
+  logger.debug('Getting all AMIs from ec2 with filters', { filters: options.amiFilters });
   const amiEc2 = await ec2Client.send(
     new DescribeImagesCommand({
       Owners: ['self'],
       MaxResults: options.maxItems ? options.maxItems : undefined,
-      Filters: options.filters,
+      Filters: options.amiFilters,
     }),
   );
   logger.debug('Found the following AMIs', { amiEc2 });
@@ -129,26 +132,26 @@ async function deleteAmi(amiDetails: Image, options: AmiCleanupOptionsInternal):
   }
 
   try {
-    logger.info(`deleting ami ${amiDetails.ImageId} created at ${amiDetails.CreationDate}`);
+    logger.info(`deleting ami ${amiDetails.Name || amiDetails.ImageId} created at ${amiDetails.CreationDate}`);
     const ec2Client = new EC2Client({});
-    await ec2Client.send(new DeregisterImageCommand({ ImageId: amiDetails.ImageId }));
-    await deleteSnapshot(amiDetails, ec2Client);
+    await ec2Client.send(new DeregisterImageCommand({ ImageId: amiDetails.ImageId, DryRun: options.dryRun }));
+    await deleteSnapshot(options, amiDetails, ec2Client);
   } catch (error) {
-    logger.warn(`Cannot delete ami ${amiDetails.ImageId}`);
-    logger.debug(`Cannot delete ami ${amiDetails.ImageId}`, { error });
+    logger.warn(`Cannot delete ami ${amiDetails.Name || amiDetails.ImageId}`);
+    logger.debug(`Cannot delete ami ${amiDetails.Name || amiDetails.ImageId}`, { error });
   }
 }
 
-async function deleteSnapshot(amiDetails: Image, ec2Client: EC2Client) {
+async function deleteSnapshot(options: AmiCleanupOptions, amiDetails: Image, ec2Client: EC2Client) {
   amiDetails.BlockDeviceMappings?.map(async (blockDeviceMapping) => {
     const snapshotId = blockDeviceMapping.Ebs?.SnapshotId;
     if (snapshotId) {
       try {
         logger.info(`deleting snapshot ${snapshotId} from ami ${amiDetails.ImageId}`);
-        await ec2Client.send(new DeleteSnapshotCommand({ SnapshotId: snapshotId }));
+        await ec2Client.send(new DeleteSnapshotCommand({ SnapshotId: snapshotId, DryRun: options.dryRun }));
       } catch (error) {
-        logger.error(`Cannot delete snapshot ${snapshotId} for ${amiDetails.ImageId}`);
-        logger.debug(`Cannot delete snapshot ${snapshotId} for ${amiDetails.ImageId}`, { error });
+        logger.error(`Cannot delete snapshot ${snapshotId} for ${amiDetails.Name || amiDetails.ImageId}`);
+        logger.debug(`Cannot delete snapshot ${snapshotId} for ${amiDetails.Name || amiDetails.ImageId}`, { error });
       }
     }
   });

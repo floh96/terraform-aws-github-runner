@@ -11,7 +11,7 @@ jest.mock('@terraform-aws-github-runner/aws-powertools-util');
 const amiCleanupOptions: AmiCleanupOptions = {
   minimumDaysOld: undefined,
   maxItems: undefined,
-  filters: undefined,
+  amiFilters: undefined,
   launchTemplateNames: undefined,
   ssmParameterNames: undefined,
 };

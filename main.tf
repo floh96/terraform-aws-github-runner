@@ -8,7 +8,8 @@ locals {
     key_base64 = module.ssm.parameters.github_app_key_base64
   }
 
-  runner_labels = sort(distinct(concat(["self-hosted", var.runner_os, var.runner_architecture], var.runner_extra_labels)))
+  default_runner_labels = "self-hosted,${var.runner_os},${var.runner_architecture}"
+  runner_labels         = var.runner_extra_labels != "" ? "${local.default_runner_labels},${var.runner_extra_labels}" : local.default_runner_labels
 
   ssm_root_path = var.ssm_paths.use_prefix ? "/${var.ssm_paths.root}/${var.prefix}" : "/${var.ssm_paths.root}"
 }
@@ -134,7 +135,7 @@ module "webhook" {
       arn : aws_sqs_queue.queued_builds.arn
       fifo : var.enable_fifo_build_queue
       matcherConfig : {
-        labelMatchers : [local.runner_labels]
+        labelMatchers : [split(",", local.runner_labels)]
         exactMatch : var.enable_runner_workflow_job_labels_check_all
       }
     }
@@ -318,4 +319,34 @@ module "runner_binaries" {
 
 
   lambda_principals = var.lambda_principals
+}
+
+module "ami_housekeeper" {
+  source = "./modules/ami-housekeeper"
+
+  prefix        = var.prefix
+  tags          = local.tags
+  aws_partition = var.aws_partition
+
+  lambda_zip               = var.ami_housekeeper_lambda_zip
+  lambda_s3_bucket         = var.lambda_s3_bucket
+  lambda_s3_key            = var.ami_housekeeper_lambda_s3_key
+  lambda_s3_object_version = var.ami_housekeeper_lambda_s3_object_version
+
+  lambda_architecture       = var.lambda_architecture
+  lambda_principals         = var.lambda_principals
+  lambda_runtime            = var.lambda_runtime
+  lambda_security_group_ids = var.lambda_security_group_ids
+  lambda_subnet_ids         = var.lambda_subnet_ids
+  lambda_timeout            = var.runner_binaries_syncer_lambda_timeout
+  lambda_tracing_mode       = var.lambda_tracing_mode
+
+  logging_retention_in_days = var.logging_retention_in_days
+  logging_kms_key_id        = var.logging_kms_key_id
+  log_level                 = var.log_level
+
+  role_path                 = var.role_path
+  role_permissions_boundary = var.role_permissions_boundary
+
+
 }

@@ -192,7 +192,7 @@ describe("delete AMI's", () => {
       LaunchTemplateNames: undefined,
     });
     expect(mockEC2Client).toHaveReceivedCommandWith(DescribeImagesCommand, {
-      Filters: defaultAmiCleanupOptions.filters,
+      Filters: defaultAmiCleanupOptions.amiFilters,
       MaxResults: defaultAmiCleanupOptions.maxItems,
       Owners: ['self'],
     });

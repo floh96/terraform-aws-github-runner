@@ -6,7 +6,7 @@ export function run(): void {
   amiCleanup({
     minimumDaysOld: 30,
     maxItems: 100,
-    filters: [
+    amiFilters: [
       {
         Name: 'state',
         Values: ['available'],

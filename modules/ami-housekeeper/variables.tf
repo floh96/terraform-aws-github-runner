@@ -11,7 +11,7 @@ variable "ami_cleanup_config" {
   type = object({
     maxItems       = optional(number)
     minimumDaysOld = optional(number)
-    filters = optional(list(object({
+    amiFilters = optional(list(object({
       Name   = string
       Values = list(string)
     })))

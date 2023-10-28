@@ -120,14 +120,13 @@ module "ami_housekeeper" {
 
   ami_cleanup_config = {
     ssmParameterNames = ["*/ami-id"]
-    minimumDaysOld    = 30
-    filters = [
+    minimumDaysOld    = 10
+    amiFilters = [
       {
         Name   = "name"
         Values = ["*al2023*"]
       }
     ]
-    dryRun = true
   }
   log_level = "debug"
 }

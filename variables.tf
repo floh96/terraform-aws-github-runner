@@ -769,3 +769,40 @@ variable "enable_jit_config" {
   type        = bool
   default     = null
 }
+
+variable "enable_ami_housekeeper" {
+  description = "Option to disable the lambda to clean up old AMIs."
+  type        = bool
+  default     = false
+}
+
+variable "ami_housekeeper_lambda_zip" {
+  description = "File location of the lambda zip file."
+  type        = string
+  default     = null
+}
+
+variable "ami_housekeeper_lambda_timeout" {
+  description = "Time out of the lambda in seconds."
+  type        = number
+  default     = 300
+}
+
+
+variable "ami_housekeeper_lambda_s3_bucket" {
+  description = "S3 bucket from which to specify lambda functions. This is an alternative to providing local files directly."
+  type        = string
+  default     = null
+}
+
+variable "ami_housekeeper_lambda_s3_key" {
+  description = "S3 key for syncer lambda function. Required if using S3 bucket to specify lambdas."
+  type        = string
+  default     = null
+}
+
+variable "ami_housekeeper_lambda_s3_object_version" {
+  description = "S3 object version for syncer lambda function. Useful if S3 versioning is enabled on source bucket."
+  type        = string
+  default     = null
+}
