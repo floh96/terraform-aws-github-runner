@@ -8,8 +8,7 @@ locals {
     key_base64 = module.ssm.parameters.github_app_key_base64
   }
 
-  default_runner_labels = "self-hosted,${var.runner_os},${var.runner_architecture}"
-  runner_labels         = var.runner_extra_labels != "" ? "${local.default_runner_labels},${var.runner_extra_labels}" : local.default_runner_labels
+  runner_labels = sort(distinct(concat(["self-hosted", var.runner_os, var.runner_architecture], var.runner_extra_labels)))
 
   ssm_root_path = var.ssm_paths.use_prefix ? "/${var.ssm_paths.root}/${var.prefix}" : "/${var.ssm_paths.root}"
 }
@@ -135,7 +134,7 @@ module "webhook" {
       arn : aws_sqs_queue.queued_builds.arn
       fifo : var.enable_fifo_build_queue
       matcherConfig : {
-        labelMatchers : [split(",", local.runner_labels)]
+        labelMatchers : [local.runner_labels]
         exactMatch : var.enable_runner_workflow_job_labels_check_all
       }
     }
@@ -322,6 +321,7 @@ module "runner_binaries" {
 }
 
 module "ami_housekeeper" {
+  count  = var.enable_ami_housekeeper ? 1 : 0
   source = "./modules/ami-housekeeper"
 
   prefix        = var.prefix
@@ -338,7 +338,7 @@ module "ami_housekeeper" {
   lambda_runtime            = var.lambda_runtime
   lambda_security_group_ids = var.lambda_security_group_ids
   lambda_subnet_ids         = var.lambda_subnet_ids
-  lambda_timeout            = var.runner_binaries_syncer_lambda_timeout
+  lambda_timeout            = var.ami_housekeeper_lambda_timeout
   lambda_tracing_mode       = var.lambda_tracing_mode
 
   logging_retention_in_days = var.logging_retention_in_days
@@ -348,5 +348,6 @@ module "ami_housekeeper" {
   role_path                 = var.role_path
   role_permissions_boundary = var.role_permissions_boundary
 
-
+  ami_cleanup_config         = var.ami_housekeeper_cleanup_config
+  lambda_schedule_expression = var.ami_housekeeper_lambda_schedule_expression
 }

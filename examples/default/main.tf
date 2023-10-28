@@ -96,6 +96,19 @@ module "runners" {
 
   # Enable debug logging for the lambda functions
   # log_level = "debug"
+
+  enable_ami_housekeeper = true
+  ami_housekeeper_cleanup_config = {
+    ssmParameterNames = ["*/ami-id"]
+    minimumDaysOld    = 10
+    amiFilters = [
+      {
+        Name   = "name"
+        Values = ["*al2023*"]
+      }
+    ]
+  }
+
 }
 
 module "webhook_github_app" {
@@ -108,25 +121,4 @@ module "webhook_github_app" {
     webhook_secret = random_id.random.hex
   }
   webhook_endpoint = module.runners.webhook.endpoint
-}
-
-module "ami_housekeeper" {
-  source = "../../modules/ami-housekeeper"
-
-  prefix = local.environment
-  tags = {
-    Project = "ProjectX"
-  }
-
-  ami_cleanup_config = {
-    ssmParameterNames = ["*/ami-id"]
-    minimumDaysOld    = 10
-    amiFilters = [
-      {
-        Name   = "name"
-        Values = ["*al2023*"]
-      }
-    ]
-  }
-  log_level = "debug"
 }
