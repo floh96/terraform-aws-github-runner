@@ -4,7 +4,7 @@ import 'source-map-support/register';
 
 import { amiCleanup } from './ami';
 
-export async function housekeeperAmi(event: unknown, context: Context): Promise<void> {
+export async function handler(event: unknown, context: Context): Promise<void> {
   setContext(context, 'lambda.ts');
   logger.logEventIfEnabled(event);
 

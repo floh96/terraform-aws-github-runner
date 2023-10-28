@@ -19,6 +19,7 @@ export interface AmiCleanupOptions {
   filters?: Filter[];
   launchTemplateNames?: string[];
   ssmParameterNames?: string[];
+  dryRun?: boolean;
 }
 
 interface AmiCleanupOptionsInternal extends AmiCleanupOptions {
@@ -29,7 +30,7 @@ interface AmiCleanupOptionsInternal extends AmiCleanupOptions {
   ssmParameterNames: string[];
 }
 
-const defaultAmiCleanupOptions: AmiCleanupOptions = {
+export const defaultAmiCleanupOptions: AmiCleanupOptions = {
   minimumDaysOld: 30,
   maxItems: undefined,
   filters: [
@@ -46,21 +47,31 @@ const defaultAmiCleanupOptions: AmiCleanupOptions = {
   ssmParameterNames: undefined,
 };
 
+function applyDefaults(options: AmiCleanupOptions): AmiCleanupOptions {
+  return {
+    minimumDaysOld: options.minimumDaysOld ?? defaultAmiCleanupOptions.minimumDaysOld,
+    maxItems: options.maxItems ?? defaultAmiCleanupOptions.maxItems,
+    filters: options.filters ?? defaultAmiCleanupOptions.filters,
+    launchTemplateNames: options.launchTemplateNames ?? defaultAmiCleanupOptions.launchTemplateNames,
+    ssmParameterNames: options.ssmParameterNames ?? defaultAmiCleanupOptions.ssmParameterNames,
+  };
+}
+
 /**
  * Cleanup AMIs that are not in use anymore.
  *
- * @param minimumDaysOld the minumum age of the AMI in days
- * @param maxItems optional, the number of AMIs to delete, default is -1 (all)
+ * @param options the cleanup options
  */
-async function amiCleanup(options?: AmiCleanupOptions): Promise<void> {
-  const mergedOptions = { ...defaultAmiCleanupOptions, ...options } as AmiCleanupOptionsInternal;
+async function amiCleanup(options: AmiCleanupOptions): Promise<void> {
+  const mergedOptions = applyDefaults(options) as AmiCleanupOptionsInternal;
   logger.info(`Cleaning up non used AMIs older then ${mergedOptions.minimumDaysOld} days`);
+  logger.debug('Using the following options', { options: mergedOptions });
 
   const amisNotInUse = await getAmisNotInUse(mergedOptions);
 
   for (const image of amisNotInUse) {
     await new Promise((resolve) => setTimeout(resolve, 100));
-    await deleteAmi(image, mergedOptions.minimumDaysOld);
+    await deleteAmi(image, mergedOptions);
   }
 }
 
@@ -69,6 +80,7 @@ async function getAmisNotInUse(options: AmiCleanupOptions) {
   const amiIdsInTemplates = await getAmiInLatestTemplates(options);
 
   const ec2Client = new EC2Client({});
+  logger.debug('Getting all AMIs from ec2 with filters', { filters: options.filters });
   const amiEc2 = await ec2Client.send(
     new DescribeImagesCommand({
       Owners: ['self'],
@@ -76,6 +88,7 @@ async function getAmisNotInUse(options: AmiCleanupOptions) {
       Filters: options.filters,
     }),
   );
+  logger.debug('Found the following AMIs', { amiEc2 });
 
   // sort oldest first
   amiEc2.Images?.sort((a, b) => {
@@ -99,24 +112,25 @@ async function getAmisNotInUse(options: AmiCleanupOptions) {
   return filteredAmiEc2;
 }
 
-async function deleteAmi(amiDetails: Image, minimumDaysOld: number): Promise<void> {
+async function deleteAmi(amiDetails: Image, options: AmiCleanupOptionsInternal): Promise<void> {
   // check if ami is older then 30 days
   const creationDate = amiDetails.CreationDate ? new Date(amiDetails.CreationDate) : undefined;
   const minimumDaysOldDate = new Date();
-  minimumDaysOldDate.setDate(minimumDaysOldDate.getDate() - minimumDaysOld);
+  minimumDaysOldDate.setDate(minimumDaysOldDate.getDate() - options.minimumDaysOld);
   if (!creationDate) {
     logger.warn(`ami ${amiDetails.ImageId} has no creation date`);
     return;
   } else if (creationDate > minimumDaysOldDate) {
     logger.debug(
-      `ami ${amiDetails.ImageId} created on ${amiDetails.CreationDate} is not deleted, ` +
-        `not older then ${minimumDaysOld} days`,
+      `ami ${amiDetails.Name || amiDetails.ImageId} created on ${amiDetails.CreationDate} is not deleted, ` +
+        `not older then ${options.minimumDaysOld} days`,
     );
     return;
   }
-  const ec2Client = new EC2Client({});
+
   try {
     logger.info(`deleting ami ${amiDetails.ImageId} created at ${amiDetails.CreationDate}`);
+    const ec2Client = new EC2Client({});
     await ec2Client.send(new DeregisterImageCommand({ ImageId: amiDetails.ImageId }));
     await deleteSnapshot(amiDetails, ec2Client);
   } catch (error) {
@@ -167,7 +181,7 @@ async function getAmiInLatestTemplates(options: AmiCleanupOptions): Promise<(str
 }
 
 async function getAmisReferedInSSM(options: AmiCleanupOptions): Promise<(string | undefined)[]> {
-  if (options.ssmParameterNames === undefined || options.ssmParameterNames.length === 0) {
+  if (!options.ssmParameterNames || options.ssmParameterNames.length === 0) {
     return [];
   }
 

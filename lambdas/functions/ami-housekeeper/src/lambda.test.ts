@@ -3,13 +3,17 @@ import { Context } from 'aws-lambda';
 import { mocked } from 'jest-mock';
 
 import { AmiCleanupOptions, amiCleanup } from './ami';
-import { housekeeperAmi } from './lambda';
+import { handler } from './lambda';
 
 jest.mock('./ami');
 jest.mock('@terraform-aws-github-runner/aws-powertools-util');
 
 const amiCleanupOptions: AmiCleanupOptions = {
-  minimumDaysOld: 7,
+  minimumDaysOld: undefined,
+  maxItems: undefined,
+  filters: undefined,
+  launchTemplateNames: undefined,
+  ssmParameterNames: undefined,
 };
 
 process.env.AMI_CLEANUP_OPTIONS = JSON.stringify(amiCleanupOptions);
@@ -48,7 +52,7 @@ describe('Housekeeper ami', () => {
         resolve();
       });
     });
-    expect(await housekeeperAmi(undefined, context)).resolves;
+    expect(await handler(undefined, context)).resolves;
   });
 
   it('should not thow only log in error in case of an exception.', async () => {
@@ -57,7 +61,7 @@ describe('Housekeeper ami', () => {
     const error = new Error('An error.');
     const mock = mocked(amiCleanup);
     mock.mockRejectedValue(error);
-    await expect(housekeeperAmi(undefined, context)).resolves.toBeUndefined();
+    await expect(handler(undefined, context)).resolves.toBeUndefined();
 
     expect(logSpy).toHaveBeenCalledTimes(1);
   });

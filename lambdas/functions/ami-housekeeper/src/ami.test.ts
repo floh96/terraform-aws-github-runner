@@ -16,7 +16,7 @@ import {
 import { mockClient } from 'aws-sdk-client-mock';
 import 'aws-sdk-client-mock-jest';
 
-import { AmiCleanupOptions, amiCleanup } from './ami';
+import { AmiCleanupOptions, amiCleanup, defaultAmiCleanupOptions } from './ami';
 
 process.env.AWS_REGION = 'eu-east-1';
 const deleteAmisOlderThenDays = 30;
@@ -72,10 +72,6 @@ const ssmParameters: DescribeParametersCommandOutput = {
     attempts: 1,
     totalRetryDelay: 0,
   },
-};
-
-const defaultAmiCleanupOptions: AmiCleanupOptions = {
-  ssmParameterNames: ['*ami-id'],
 };
 
 describe("delete AMI's", () => {
@@ -166,6 +162,43 @@ describe("delete AMI's", () => {
     });
     expect(mockEC2Client).not.toHaveReceivedCommand(DeregisterImageCommand);
     expect(mockEC2Client).not.toHaveReceivedCommand(DeleteSnapshotCommand);
+  });
+
+  it('Should rely on defaults if no options are passed.', async () => {
+    mockEC2Client.on(DescribeImagesCommand, { Owners: ['self'] }).resolves({
+      Images: [
+        {
+          ImageId: 'ami-notOld',
+          CreationDate: new Date().toISOString(),
+        },
+        {
+          ImageId: 'ami-old',
+          CreationDate: date31DaysAgo.toISOString(),
+        },
+      ],
+    });
+
+    // force null values since json does not support undefined
+    await amiCleanup({
+      ssmParameterNames: null,
+      minimumDaysOld: null,
+      filters: null,
+      launchTemplateNames: null,
+      maxItems: null,
+    } as unknown as AmiCleanupOptions);
+
+    expect(mockSSMClient).not.toHaveReceivedCommand(DescribeParametersCommand);
+    expect(mockEC2Client).toHaveReceivedCommandWith(DescribeLaunchTemplatesCommand, {
+      LaunchTemplateNames: undefined,
+    });
+    expect(mockEC2Client).toHaveReceivedCommandWith(DescribeImagesCommand, {
+      Filters: defaultAmiCleanupOptions.filters,
+      MaxResults: defaultAmiCleanupOptions.maxItems,
+      Owners: ['self'],
+    });
+    expect(mockEC2Client).toHaveReceivedCommandWith(DeregisterImageCommand, {
+      ImageId: 'ami-old',
+    });
   });
 
   it('should NOT delete instances in use, SSM not used.', async () => {
@@ -304,7 +337,7 @@ describe("delete AMI's", () => {
 
     mockEC2Client.on(DeregisterImageCommand).rejects({});
 
-    await amiCleanup(defaultAmiCleanupOptions);
+    await amiCleanup({ ssmParameterNames: ['*ami-id'] }).catch(() => fail());
     expect(mockEC2Client).toHaveReceivedCommandTimes(DeregisterImageCommand, 1);
     expect(mockEC2Client).not.toHaveReceivedCommand(DeleteSnapshotCommand);
   });
@@ -329,7 +362,7 @@ describe("delete AMI's", () => {
 
     mockEC2Client.on(DeleteSnapshotCommand).rejects({});
 
-    await amiCleanup(defaultAmiCleanupOptions).catch(() => fail());
+    await amiCleanup({ ssmParameterNames: ['*ami-id'] }).catch(() => fail());
     expect(mockEC2Client).toHaveReceivedCommandTimes(DeregisterImageCommand, 1);
     expect(mockEC2Client).toHaveReceivedCommandTimes(DeleteSnapshotCommand, 1);
   });

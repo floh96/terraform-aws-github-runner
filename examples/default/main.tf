@@ -109,3 +109,25 @@ module "webhook_github_app" {
   }
   webhook_endpoint = module.runners.webhook.endpoint
 }
+
+module "ami_housekeeper" {
+  source = "../../modules/ami-housekeeper"
+
+  prefix = local.environment
+  tags = {
+    Project = "ProjectX"
+  }
+
+  ami_cleanup_config = {
+    ssmParameterNames = ["*/ami-id"]
+    minimumDaysOld    = 30
+    filters = [
+      {
+        Name   = "name"
+        Values = ["*al2023*"]
+      }
+    ]
+    dryRun = true
+  }
+  log_level = "debug"
+}
